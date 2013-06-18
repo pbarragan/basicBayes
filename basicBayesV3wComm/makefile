@@ -1,0 +1,2 @@
+all:
+	g++ main.cpp BasicDemo.cpp BasicDemoPris.cpp BasicDemoRev.cpp bbSide.cpp -lGL -lGLU -I ~/Documents/cppCode/bullet-2.81-rev2613/src/ ~/Documents/cppCode/bullet-2.81-rev2613/bullet-build/src/BulletDynamics/libBulletDynamics.a ~/Documents/cppCode/bullet-2.81-rev2613/bullet-build/src/BulletCollision/libBulletCollision.a ~/Documents/cppCode/bullet-2.81-rev2613/bullet-build/src/LinearMath/libLinearMath.a -o main
