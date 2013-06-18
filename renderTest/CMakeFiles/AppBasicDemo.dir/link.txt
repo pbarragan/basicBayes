@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/AppBasicDemo.dir/mit/barragan/Documents/cppCode/bullet-2.81-rev2613/Demos/OpenGL/Win32AppMain.o CMakeFiles/AppBasicDemo.dir/Win32BasicDemo.o CMakeFiles/AppBasicDemo.dir/BasicDemo.o  -o AppBasicDemo -rdynamic -lOpenGLSupport -lBulletDynamics -lBulletCollision -lLinearMath 
