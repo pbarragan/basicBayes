@@ -1,0 +1,98 @@
+/*
+ *  basicBayes.h
+ *  basicBayes
+ *
+ *  Created by Patrick Barragan on 12/17/12.
+ *  Copyright 2012 MIT. All rights reserved.
+ *
+ */
+
+#include <vector>
+
+#ifndef BASIC_BAYES_H
+#define BASIC_BAYES_H
+
+class basicBayes {
+
+	public:
+	
+	std::vector<double> normalizeVector(std::vector<double> probVect);
+	
+	std::vector<double> stateTransition(std::vector<double> prevState, std::vector<double> action);
+
+	//overloaded
+	void transitionUpdate(std::vector<double> action);
+	void transitionUpdate(std::vector<double>& probList, std::vector<double> action);
+
+
+	//overloaded
+	void observationUpdate(std::vector<double> obs);
+	void observationUpdate(std::vector<double>& probList, std::vector<double> obs);
+
+	
+	double probState(std::vector<double> sampleState, std::vector<double> meanState);
+	
+	double probObs(std::vector<double> obs, std::vector<double> state);
+
+	Eigen::Map<Eigen::MatrixXd> convertVect(std::vector<double>& vect);
+
+	Eigen::Map<Eigen::MatrixXd> convertCovMat(std::vector<double>& covMat);
+
+	double evaluteMVG(std::vector<double>& sampleVecVect, std::vector<double>& meanVecVect, std::vector<double>& covMatVect);
+	
+	void setCovMats(std::vector<double>& obs,std::vector<double>& trans);
+	
+	void setupStates();
+	
+	void filterSetup();
+	
+	std::vector< std::vector<double> > createValueList(double dimRanges[][2], double dimNums[], int dims);
+
+	std::vector< std::vector<double> > recurseList(std::vector< std::vector<double> > totalList, std::vector<double> oldSeq, int level, std::vector< std::vector<double> > valueList);
+
+	
+	std::vector<double> obsCovMat;
+	std::vector<double> transCovMat;
+	std::vector< std::vector<double> > stateList;
+	std::vector<double> probList_; //PDF
+	
+	void printProbList();
+	void printStateList();
+
+	std::vector<double> realPrevState_;
+	std::vector<double> realCurrentState_;
+	std::vector<double> realAction_;
+
+	//overloaded
+	std::vector<double> getObs();
+	std::vector<double> getObs(std::vector<double>& currentState);
+	double randomDouble();
+
+	void runRealWorld();
+
+	//stuff added for action selection
+	std::vector<double> createCDF(std::vector<double> probList);
+	std::vector<double> getSampleState(std::vector<double>& CDF, std::vector< std::vector<double> >& states);
+
+	void chooseAction();
+	void chooseActionOG();
+	void setupActions();
+	double distPoints(std::vector<double> a, std::vector<double> b);
+	
+	double calcEntropy(std::vector<double> probs);
+
+
+	//overloaded
+	std::vector<double> calcModelProb();
+	std::vector<double> calcModelProb(std::vector<double>& probList);
+
+
+	std::vector< std::vector<double> > actionList_;
+	int numModels_;
+
+	//debug printing
+	bool debug_print_;
+
+};
+
+#endif //BASIC_BAYES_H

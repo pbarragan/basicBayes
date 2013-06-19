@@ -6,8 +6,7 @@
 #include "bbSide.h"
 
 std::string vectorToTxtFile(std::vector<double> data){
-  //this needs to get changed if you are using a different basicBayes package
-  std::string fileName = "/mit/barragan/Documents/cppCode/basicBayes/basicBayesV3wComm/files/bbToRobot.txt";
+  std::string fileName = "/mit/barragan/Documents/cppCode/basicBayesV2wComm/files/bbToRobot.txt";
   std::ofstream bbToRobot;
   bbToRobot.open(fileName.c_str());
   if (bbToRobot.is_open()){
@@ -16,9 +15,7 @@ std::string vectorToTxtFile(std::vector<double> data){
     }
     bbToRobot.close();
   }
-  else {
-    //std::cout << "vectorToTxtFile: Unable to open output file" << std::endl;
-  }
+  else std::cout << "vectorToTxtFile: Unable to open output file" << std::endl;
   return fileName;
 }
 
@@ -56,7 +53,7 @@ std::vector<double> txtFileToVector(std::string fileName) {
     }
   
   else{
-    //std::cout << "txtFileToVector: Unable to open input file" << std::endl;
+    std::cout << "txtFileToVector: Unable to open input file" << std::endl;
   }
   return data;
 }
@@ -66,8 +63,7 @@ void sendRequest(std::vector<double> request){
 }
 
 bool getResponse(std::vector<double> &dataVec){
-  //this needs to get changed if you are using a different basicBayes package
-  std::string receivedFile = "/mit/barragan/Documents/cppCode/basicBayes/basicBayesV3wComm/files/robotToBB.txt";
+  std::string receivedFile = "/mit/barragan/Documents/cppCode/basicBayesV2wComm/files/robotToBB.txt";
   std::vector<double> data = txtFileToVector(receivedFile);
   if(data.size()!=0){
     for(size_t i = 0; i<data.size();i++){
