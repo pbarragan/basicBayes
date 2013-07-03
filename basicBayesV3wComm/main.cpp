@@ -288,8 +288,10 @@ void basicBayes::setCovMats(std::vector<double>& obs,std::vector<double>& trans)
 	
 	//double obsArray[] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
 	//double transArray[] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
-	double obsArray[] = {0.005,0.0,0.0,0.005};
-	double transArray[] = {0.005,0.0,0.0,0.005};
+	//double obsArray[] = {0.005,0.0,0.0,0.005};
+	//double transArray[] = {0.005,0.0,0.0,0.005};
+	double obsArray[] = {0.000001,0.0,0.0,0.000001};
+	double transArray[] = {0.000001,0.0,0.0,0.000001};
 	obs.assign(obsArray, obsArray + sizeof(obsArray)/sizeof(double));
 	trans.assign(transArray, transArray + sizeof(transArray)/sizeof(double));
 } 
@@ -826,7 +828,7 @@ void basicBayes::chooseActionOG(){
 }  
 void basicBayes::runRealWorld(){
 
-  bool realWorld = true;
+  bool realWorld = false;
 
   if (realWorld == false){
   //When you want to use a simulation for the real world
@@ -1073,13 +1075,13 @@ int main (int argc, char * const argv[]) {
 	for (size_t i=0; i<filterIters; i++) {
 	  
 	  //old way
-	  //std::vector<double> currentMove = moveList[i%4];
-	  //filter.realAction_ = currentMove;
+	  std::vector<double> currentMove = moveList[i%4];
+	  filter.realAction_ = currentMove;
 	  
 	  //new way
 
 	  //std::vector<double> save = filter.probList_;
-	  filter.chooseAction();
+	  //filter.chooseAction();
 	  //std::cout << "this be carazy: " << vectorDiff(save,filter.probList_) << std::endl;
 	  //filter.printProbList();
 	  std::cout << "Action chosen: " << filter.realAction_[0] << "," << filter.realAction_[1] << std::endl;
@@ -1092,10 +1094,10 @@ int main (int argc, char * const argv[]) {
 	  //std::cout << "realCurrentState_: " << filter.realCurrentState_[0] << "," << filter.realCurrentState_[1] << std::endl;
 	  filter.transitionUpdate(filter.realAction_);
 	  //if you want noise added to the observation from the simulation
-	  //filter.observationUpdate(filter.getObs());
+	  filter.observationUpdate(filter.getObs());
 	  //std::cout << "obs: " << filter.getObs()[0] << "," << filter.getObs()[1] << std::endl;
 	  //if you are using the real robot
-	  filter.observationUpdate(filter.realCurrentState_);
+	  //filter.observationUpdate(filter.realCurrentState_);
 
 	  /*
 	  double sumM0 = std::accumulate(filter.probList.begin(),filter.probList.begin()+9,(double) 0);

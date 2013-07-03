@@ -8,6 +8,7 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <limits>
 using Eigen::MatrixXd;
 //#include <bullshit>
 #include <string>
@@ -19,6 +20,304 @@ using Eigen::MatrixXd;
 #include "BasicDemoRev.h"
 #include "BasicDemoPris.h"
 #include "bbSide.h"
+#include "logUtils.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//--------------------------------LOG SECTION------------------------------//
+/////////////////////////////////////////////////////////////////////////////
+
+//overload this function
+void basicBayes::transitionUpdateLog(std::vector<double> action){
+  transitionUpdateLog(logProbList_, action);
+  //printProbList();
+}
+
+//overload this function
+void basicBayes::transitionUpdateLog(std::vector<double>& logProbList, std::vector<double> action){
+	//in here, we need to for each state 1) do a state transition 2) drop a guassian on that as the mean, then for each state
+	//3) calculate the probility of that state in that gaussian 4) multiple it by the prev probability of the state in the outer for loop
+	//5) sum the probability added to each state as you go through the outer for loop
+	//this will require a termporary probability list.
+
+  //print out the action taken every time the transition update is called
+  if (debug_print_){
+    std::cout << "Took an action: " << std::endl;
+    for (size_t ll=0; ll<action.size(); ll++) {
+      std::cout << action[ll] << ',';
+    }
+    std::cout << std::endl;
+  }
+
+  std::vector< std::vector<double> > tempLogProbListList ( stateList.size(),std::vector<double> (stateList.size(),0.0) ); //this will be the sum of the probability after each x_k-1 state
+
+	for (size_t i=0; i<stateList.size(); i++) {
+		//this loop is for x_k-1
+		std::vector<double> tempStateLogProbList (stateList.size(),0.0); //this will hold the probability in the inner loop waiting for normalization
+
+		std::vector<double> nextState = stateTransition(stateList[i], action); //this will be the mean of the guassian used to calculate the transition probability
+		
+		for (size_t j=0; j<stateList.size(); j++) {
+			//this loop is for x_k
+			tempStateLogProbList[j] = logProbState(stateList[j],nextState);
+			//std::cout << "probState: " << tempStateProbList[j] << std::endl;
+		}
+		tempStateLogProbList = logUtils::normalizeVectorInLogSpace(tempStateLogProbList); //normalize the distribution before you scale and add it.
+
+		/*
+		for (size_t w=0; w<tempStateProbList.size(); w++){
+		  //std::cout << "inner prob: " << tempStateProbList[w] << std::endl;
+		}
+		*/
+
+		for (size_t k=0; k<stateList.size(); k++) {
+		  //save a vector of vectors so you can log-sum-exp later to get log(p(x_k|Z_k-1))
+			//this loop is for x_k
+			tempLogProbListList[k][i] = tempStateLogProbList[k]+logProbList[i];
+		}
+	}
+
+	//extra step in the log calc. Do log-sum-exp.
+	std::vector<double> tempLogProbList (stateList.size(),0.0);
+	for (size_t l=0; l<stateList.size(); l++){
+	  tempLogProbList[l] = logUtils::logSumExp(tempLogProbListList[l]);
+	}
+
+	//this is debug stuff
+	//double sumBefore = std::accumulate(probList.begin(),probList.end(),(double) 0);
+	logProbList = tempLogProbList;
+	//double sumAfter = std::accumulate(probList.begin(),probList.end(),(double) 0);
+
+	//std::cout << "Sum Before: " << sumBefore << std::endl;
+	//std::cout << "Sum After: " << sumAfter << std::endl;
+	//printProbList();
+
+}
+
+//overload this function
+void basicBayes::observationUpdateLog(std::vector<double> obs){
+  observationUpdateLog(logProbList_,obs);
+  std::cout << "what is up" << std::endl;
+  //printProbList();
+}
+
+//overload this function
+void basicBayes::observationUpdateLog(std::vector<double>& logProbList, std::vector<double> obs){
+  if (debug_print_){
+    std::cout << "Real current state: " << std::endl;
+    std::cout << realCurrentState_[0] << "," << realCurrentState_[1] << std::endl;
+    
+    std::cout << "Got an observation:" << std::endl;
+    
+    for (size_t ll=0; ll<obs.size(); ll++) {
+      std::cout << obs[ll] << ',';
+    }
+    std::cout << std::endl;
+  }
+
+	for (size_t i=0; i<stateList.size(); i++) {
+		logProbList[i] += logProbObs(obs,stateList[i]);
+	}
+	
+	//normalize
+	printLogProbList();
+	std::cout << "what the hell is going on" << std::endl;
+	//double sumBefore = std::accumulate(probList.begin(),probList.end(),(double) 0);
+
+	logProbList = logUtils::normalizeVectorInLogSpace(logProbList);
+	//double sumAfter = std::accumulate(probList.begin(),probList.end(),(double) 0);
+	//std::cout << "Sum Before: " << sumBefore << std::endl;
+	//std::cout << "Sum After: " << sumAfter << std::endl;
+	printLogProbList();
+}
+ 
+double basicBayes::logProbState(std::vector<double> sampleState, std::vector<double> meanState){
+	//this funciton is problem specific
+	
+	//sampleState is the sample vector. meanState is the mean vector. This just drops a gaussian at the meanState with a constant covariance from the class.
+	//return evaluteMVG(sampleState,meanState,transCovMat);
+	
+	if (meanState[0]==sampleState[0]){
+		//WOM means without model.
+		std::vector<double> sampleStateWOM;
+		std::vector<double> meanStateWOM;
+	
+
+		//different things for different states	
+		if (sampleState[0] == 0.0 || sampleState[0] == 1.0){
+		  sampleStateWOM.assign(sampleState.begin()+1,sampleState.end());
+		}
+		else if (sampleState[0] == 2.0){
+		  double beamLen = 0.44-0.1;
+		  double beamAngle = sampleState[1]; //angle of the beam
+		  sampleStateWOM.push_back(0.44+(beamLen+0.1f)*cos(beamAngle));
+		  sampleStateWOM.push_back((beamLen+0.1f)*sin(beamAngle));
+		}
+		else if (sampleState[0] == 3.0){
+		  double beamSlidePosition = sampleState[1]; //slide position parameter
+		  sampleStateWOM.push_back(beamSlidePosition);
+		  sampleStateWOM.push_back(0.0);
+		}
+		
+		meanStateWOM.assign(meanState.begin()+1,meanState.end());
+	
+		//std::cout << "I'm in probState" << std::endl;
+		//std::cout << "Model:" << sampleState[0] << std::endl;
+		//std::cout << sampleStateWOM[0] << "," << sampleStateWOM[1] << std::endl;
+		//std::cout << meanStateWOM[0] << "," << meanStateWOM[1] << std::endl;
+		return logUtils::evaluteLogMVG(sampleStateWOM,meanStateWOM,transCovMat);
+	}
+	else {
+	  //return 0.0;
+	  return -std::numeric_limits<double>::infinity();
+	}
+
+}
+
+double basicBayes::logProbObs(std::vector<double> obs, std::vector<double> state){
+	//this funciton is problem specific
+
+	//obs is the sample vector. state is the mean vector. This just drops a gaussian at the state with a constant covariance from the class.
+	//return evaluteMVG(obs,state,obsCovMat);
+	
+	//WOM means without model.
+	std::vector<double> stateWOM;
+	
+	//different things for different states	
+	if (state[0] == 0.0 || state[0] == 1.0){
+	  stateWOM.assign(state.begin()+1,state.end());
+	}
+	else if (state[0] == 2.0){
+	  double beamLen = 0.44-0.1;
+	  double beamAngle = state[1]; //angle of the beam
+	  stateWOM.push_back(0.44+(beamLen+0.1f)*cos(beamAngle));
+	  stateWOM.push_back((beamLen+0.1f)*sin(beamAngle));
+	}
+	else if (state[0] == 3.0){
+	  double beamSlidePosition = state[1]; //slide position parameter
+	  stateWOM.push_back(beamSlidePosition);
+	  stateWOM.push_back(0.0);
+	}
+	
+	//std::cout << "I'm in probState" << std::endl;
+
+	return logUtils::evaluteLogMVG(obs,stateWOM,obsCovMat);
+}
+
+void basicBayes::printLogProbList(){
+	std::cout << "Printing Log Probablity List:" << std::endl;
+	for (size_t ii = 0; ii<logProbList_.size(); ii++) {
+		std::cout << logProbList_[ii] <<std::endl;
+	}
+}
+
+//overload this function
+//returns the model probabilities when given a list of probabilities in log space
+std::vector<double> basicBayes::calcModelProbLog(){
+  return calcModelProbLog(logProbList_);
+}
+
+//overload this function
+//returns the model probabilities when given a list of probabilities in log space
+std::vector<double> basicBayes::calcModelProbLog(std::vector<double>& logProbList){
+  std::vector< std::vector<double> > sumHoldVect (4, std::vector<double>());
+  std::vector<double> sumHold (4,0.0);
+  
+  for (size_t i=0; i<stateList.size(); i++){
+    sumHoldVect[(int) stateList[i][0]].push_back(logProbList[i]);
+  }
+  for (size_t j=0; j<sumHoldVect.size(); j++){
+    sumHold[j] = logUtils::safe_exp(logUtils::logSumExp(sumHoldVect[j]));
+  }
+  
+  //just a little test
+  std::vector<double> probList = logUtils::expLogProbs(logProbList);
+
+  return calcModelProb(probList); 
+}
+
+void basicBayes::chooseActionLog(){
+  //The new method samples from the belief state according to the probability distribution and simulates from those states for each action. An observation is taken for the output state after the simulation. Given the observation, the belief state is updated. The probability distribution over models is calculated. The entropy of this distribution is calculated. The action which produces the lowest entropy is chosen.
+  //Step 0: Assume only log probs exist. Exponentiate to get probs.
+  std::vector<double> probList = logUtils::expLogProbs(logProbList_);
+
+  //Step 1: Create the CDF of the current belief from the PDF probList_.
+  std::vector<double> probCDF = createCDF(probList);
+
+  //Step 2: For each action, sample a state from the belief n times. Simulate this state with the action and get an observation. Update the belief with the action-observation pair. Calculate the entropy of the new belief. Average the entropies over the n samples.
+  std::vector<double> avgEntropyList; //this is a list of average entropies, one for each action
+  int nSamples = 1; //number of samples of the belief state per action
+
+  for (size_t i = 0; i<actionList_.size(); i++){
+    std::vector<double> entropyList; //this is per action
+    for (size_t j = 0; j<nSamples; j++){
+
+      //Step 2.0: Create a copy of the real probability list
+      std::vector<double> localLogProbList = logProbList_; //only for this action and sample
+
+      //Step 2.1: Sample a state from the belief
+      std::vector<double> sample = getSampleState(probCDF,stateList);
+	
+      if (debug_print_){
+	std::cout << "Choose an action: " << std::endl;
+	for (size_t k=0; k<sample.size(); k++){
+	  std::cout << sample[k] << ",";
+	}
+	std::cout << std::endl;
+      }
+      /*
+	filter.runRealWorld();
+	
+	filter.transitionUpdate(filter.realAction_);
+	//if you want noise added to the observation from the simulation
+	filter.observationUpdate(filter.getObs());
+      */
+
+      //std::vector<double> tempVect = probList_;
+      //Step 2.2: Simulate the state with the action
+      std::vector<double> nextState = stateTransition(sample, actionList_[i]);
+      std::vector<double> nextStateWOM;
+
+      //std::cout << "probList difference: " << vectorDiff(tempVect,probList_) << std::endl;
+
+      nextStateWOM.assign(nextState.begin()+1,nextState.end()); //state without the model which is always the first entry in the state
+      //std::cout << "next state:" << nextStateWOM[0] << "," << nextStateWOM[1] << std::endl;
+
+      //Step 2.3: Get an observation
+      //Step 2.4: Update the belief state in log space
+      transitionUpdateLog(localLogProbList,actionList_[i]);
+      observationUpdateLog(localLogProbList,getObs(nextStateWOM));
+
+      //Step 2.5: Calculate the entropy over models of the new belief state
+      std::vector<double> mProbs = calcModelProbLog(localLogProbList);
+      entropyList.push_back(calcEntropy(mProbs));
+
+    }
+    //Step 2.6: Average the entropies over the n samples
+    double eSum = std::accumulate(entropyList.begin(),entropyList.end(),(double) 0.0);
+    avgEntropyList.push_back(eSum/entropyList.size());
+  }
+
+  //Step 3: Choose the action which results in the lowest entropy updated belief
+  std::vector<double>::iterator minAvgEntIt = std::min_element(avgEntropyList.begin(),avgEntropyList.end());
+  realAction_ = actionList_[std::distance(avgEntropyList.begin(),minAvgEntIt)];
+
+}
+
+
+
+
+
+
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////////////
+//------------------------------END LOG SECTION----------------------------//
+/////////////////////////////////////////////////////////////////////////////
+
+
 
 void testPrint(){
   std::cout << "apparently this works" << std::endl;
@@ -143,10 +442,12 @@ void basicBayes::transitionUpdate(std::vector<double>& probList, std::vector<dou
 		}
 		tempStateProbList = normalizeVector(tempStateProbList); //normalize the distribution before you scale and add it.
 
+		/*
 		for (size_t w=0; w<tempStateProbList.size(); w++){
 		  //std::cout << "inner prob: " << tempStateProbList[w] << std::endl;
 		}
-		
+		*/
+
 		for (size_t k=0; k<stateList.size(); k++) {
 			//this loop is for x_k
 			tempProbList[k] += tempStateProbList[k]*probList[i];
@@ -288,8 +589,10 @@ void basicBayes::setCovMats(std::vector<double>& obs,std::vector<double>& trans)
 	
 	//double obsArray[] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
 	//double transArray[] = {1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0};
-	double obsArray[] = {0.005,0.0,0.0,0.005};
-	double transArray[] = {0.005,0.0,0.0,0.005};
+	//double obsArray[] = {0.005,0.0,0.0,0.005};
+	//double transArray[] = {0.005,0.0,0.0,0.005};
+	double obsArray[] = {0.0000001,0.0,0.0,0.0000001};
+	double transArray[] = {0.0000001,0.0,0.0,0.0000001};
 	obs.assign(obsArray, obsArray + sizeof(obsArray)/sizeof(double));
 	trans.assign(transArray, transArray + sizeof(transArray)/sizeof(double));
 } 
@@ -386,6 +689,8 @@ void basicBayes::setupStates(){
 	//model 0 is the free model
 	double dimRanges0[][2]={{-0.50,0.50},{-0.50,0.50}};
 	double dimNums0[] = {11,11};
+	//double dimRanges0[][2]={{-0.10,0.10},{-0.10,0.10}};
+	//double dimNums0[] = {3,3};
 	int dims0 = sizeof(dimNums0)/sizeof(dimNums0[0]);
 	
 	std::vector< std::vector<double> > valueListA = createValueList(dimRanges0,dimNums0,dims0);
@@ -432,6 +737,7 @@ void basicBayes::setupStates(){
 	//model 2 is the revolute model
 	double dimRanges2[][2]={{M_PI/2.0,3.0*M_PI/2.0}};
 	double dimNums2[] = {30};
+	//double dimNums2[] = {3};
 	int dims2 = sizeof(dimNums2)/sizeof(dimNums2[0]);
 	
 	std::vector< std::vector<double> > valueListC = createValueList(dimRanges2,dimNums2,dims2);
@@ -444,6 +750,7 @@ void basicBayes::setupStates(){
 	//model 3 is the prismatic model
 	double dimRanges3[][2]={{-.30,0.30}};
 	double dimNums3[] = {30};
+	//double dimNums3[] = {3};
 	int dims3 = sizeof(dimNums3)/sizeof(dimNums3[0]);
 	
 	std::vector< std::vector<double> > valueListD = createValueList(dimRanges3,dimNums3,dims3);
@@ -505,8 +812,11 @@ void basicBayes::setupStates(){
 	for (size_t f = 0; f<stateList.size(); f++){
 	  probList_.push_back(tempProbListUniform[(int) stateList[f][0]]);
 	}
-	
-	
+
+	//this makes the log probailities and could be part of the above for loop if I cared more.
+	for (size_t g = 0; g<probList_.size(); g++){
+	  logProbList_.push_back(logUtils::safe_log(probList_[g]));
+	}
 
 	/*
 	//This section prints useful things
@@ -520,6 +830,7 @@ void basicBayes::setupStates(){
 
 	printStateList();
 	printProbList();
+	printLogProbList();
 
 }
 
@@ -826,7 +1137,7 @@ void basicBayes::chooseActionOG(){
 }  
 void basicBayes::runRealWorld(){
 
-  bool realWorld = true;
+  bool realWorld = false;
 
   if (realWorld == false){
   //When you want to use a simulation for the real world
@@ -894,93 +1205,28 @@ double basicBayes::randomDouble(){
 }
 
 int main (int argc, char * const argv[]) {
+  //THE MAIN FUNCTION HAS BEEN CHANGED TO DOING EVERYTHING IN LOG SPACE//
 
+  std::cout << "Danger" << std::endl;
+
+        //do the basic filter setup stuff
 	basicBayes filter;
 	filter.filterSetup();
 	filter.debug_print_ = false;
-
-	/*
-	std::vector<double> test1;
-	std::vector<double> test2;
-
-	double transArray[] = {0.1,0.0,0.0,0.1};
-	std::vector<double> trans;
-	trans.assign(transArray, transArray + sizeof(transArray)/sizeof(double));
-
-	test1.push_back(3);
-	test1.push_back(0);
-	test2.push_back(-2);
-	test2.push_back(0);
-	std::cout << "blah" << filter.evaluteMVG(test1,test2,trans) << std::endl;
-	*/
-	/*
-	MatrixXd m(2,2);
-	m(0,0) = 3;
-	m(1,0) = 2.5;
-	m(0,1) = -1;
-	m(1,1) = m(1,0) + m(0,1);
-	std::cout << m << std::endl;
-	*/
-	
-	/*
-	Eigen::Matrix<double,2,1> sampleVec;
-	sampleVec << 0.0,0.1;
-	Eigen::Matrix<double,2,1> meanVec;
-	meanVec << 0.0,0.0;
-	Eigen::Matrix<double,2,2> covMat;
-	covMat << 1.0,0.0,0.0,1.0;
-	*/
-	
-	/*
-	Eigen::MatrixXd sampleVec(2,1);
-	sampleVec << 0.0,0.1;	
-	Eigen::MatrixXd meanVec(2,1);
-	meanVec << 0.0,0.0;
-	Eigen::MatrixXd covMat(2,2);
-	covMat << 1.0,0.0,0.0,1.0;
-	*/
-	
-	/*
-	std::vector<double> sampleVecVect(3);
-	sampleVecVect[0] = 0.0;
-	sampleVecVect[1] = 0.0;
-	sampleVecVect[2] = 0.0;
-	
-	std::vector<double> meanVecVect(3);
-	meanVecVect[0] = 0.0;
-	meanVecVect[1] = 0.0;
-	meanVecVect[2] = 0.0;
-	
-	std::vector<double> covMatVect(9);
-	covMatVect[0] = 1.0;
-	covMatVect[1] = 0.0;
-	covMatVect[2] = 0.0;
-	covMatVect[3] = 0.0;
-	covMatVect[4] = 1.0;
-	covMatVect[5] = 0.0;
-	covMatVect[6] = 0.0;
-	covMatVect[7] = 0.0;
-	covMatVect[8] = 1.0;
-	*/
-
-	/*
-	Eigen::Map<Eigen::MatrixXd> sampleVec(&sampleVecVect[0],sampleVecVect.size(),1);
-	Eigen::Map<Eigen::MatrixXd> meanVec(&meanVecVect[0],meanVecVect.size(),1);
-	Eigen::Map<Eigen::MatrixXd> covMat(&covMatVect[0],meanVecVect.size(),meanVecVect.size());
-	*/
-	
-	//double ans = filter.evaluteMVG(sampleVecVect,meanVecVect,filter.obsCovMat);
-	//std::cout << ans << std::endl;
-	
-	
 	filter.setupStates();
 	filter.setupActions();
+
+  std::cout << "Will" << std::endl;
+
+	//just to check the CDF
 	std::vector<double> probCDF = filter.createCDF(filter.probList_);
 	std::cout << "This is the CDF:" << std::endl;
 	for (size_t i=0; i<probCDF.size(); i++){
 	  std::cout << probCDF[i] << std::endl;
 	}
+  std::cout << "Robinson." << std::endl;
 
+	//if you want a short list of moves
 	/*
 	//moves
 	std::vector< std::vector<double> > moveList;
@@ -994,7 +1240,6 @@ int main (int argc, char * const argv[]) {
 	std::vector<double> move3 (2,0.0);
 	*/
 
-       
 	//moves 2
 	std::vector< std::vector<double> > moveList;
 	std::vector<double> move0;
@@ -1010,7 +1255,6 @@ int main (int argc, char * const argv[]) {
 	move3.push_back(0.15);
 	move3.push_back(-0.15);
 	
-
 	/*
 	//big moves
 	std::vector< std::vector<double> > moveList;
@@ -1029,8 +1273,8 @@ int main (int argc, char * const argv[]) {
 	moveList.push_back(move2);
 	moveList.push_back(move3);
 
+	//finish setting up the filter
 	std::vector<double> zeroState (2,0.0);
-	//move[1] = 0.9;
 	filter.realAction_ = zeroState;
 	filter.realPrevState_ = zeroState;
 	filter.realCurrentState_ = zeroState;
@@ -1045,14 +1289,11 @@ int main (int argc, char * const argv[]) {
 	std::vector<double> probM2;
 	std::vector<double> probM3;
 
-	/*
-	double sum0 = std::accumulate(filter.probList.begin(),filter.probList.begin()+9,(double) 0);
-	double sum1 = std::accumulate(filter.probList.begin()+9,filter.probList.begin()+10,(double) 0);
-	double sum2 = std::accumulate(filter.probList.begin()+10,filter.probList.begin()+18,(double) 0);
-	double sum3 = std::accumulate(filter.probList.end()-9,filter.probList.end(),(double) 0);
-	*/
+	std::cout << "My" << std::endl;
 
-	std::vector<double> sumHold = filter.calcModelProb();
+	std::vector<double> sumHold = filter.calcModelProbLog();
+
+	std::cout << "arms" << std::endl;
 
 	double sum0 = sumHold[0];
 	double sum1 = sumHold[1];
@@ -1070,16 +1311,19 @@ int main (int argc, char * const argv[]) {
 	probM2.push_back(sum2);
 	probM3.push_back(sum3);
 
+	std::cout << "are" << std::endl;
+
+
 	for (size_t i=0; i<filterIters; i++) {
 	  
 	  //old way
-	  //std::vector<double> currentMove = moveList[i%4];
-	  //filter.realAction_ = currentMove;
+	  std::vector<double> currentMove = moveList[i%4];
+	  filter.realAction_ = currentMove;
 	  
 	  //new way
 
 	  //std::vector<double> save = filter.probList_;
-	  filter.chooseAction();
+	  //filter.chooseActionLog();
 	  //std::cout << "this be carazy: " << vectorDiff(save,filter.probList_) << std::endl;
 	  //filter.printProbList();
 	  std::cout << "Action chosen: " << filter.realAction_[0] << "," << filter.realAction_[1] << std::endl;
@@ -1090,21 +1334,18 @@ int main (int argc, char * const argv[]) {
 	  //std::cout << "realPrevState_: " << filter.realPrevState_[0] << "," << filter.realPrevState_[1] << std::endl;
 	  filter.runRealWorld();
 	  //std::cout << "realCurrentState_: " << filter.realCurrentState_[0] << "," << filter.realCurrentState_[1] << std::endl;
-	  filter.transitionUpdate(filter.realAction_);
+	  filter.transitionUpdateLog(filter.realAction_);
 	  //if you want noise added to the observation from the simulation
-	  //filter.observationUpdate(filter.getObs());
+	  std::cout << "HELLO" << std::endl;
+	  filter.printLogProbList();
+	  filter.observationUpdateLog(filter.getObs());
 	  //std::cout << "obs: " << filter.getObs()[0] << "," << filter.getObs()[1] << std::endl;
 	  //if you are using the real robot
-	  filter.observationUpdate(filter.realCurrentState_);
+	  //filter.observationUpdateLog(filter.realCurrentState_);
 
-	  /*
-	  double sumM0 = std::accumulate(filter.probList.begin(),filter.probList.begin()+9,(double) 0);
-	  double sumM1 = std::accumulate(filter.probList.begin()+9,filter.probList.begin()+10,(double) 0);
-	  double sumM2 = std::accumulate(filter.probList.begin()+10,filter.probList.begin()+18,(double) 0);
-	  double sumM3 = std::accumulate(filter.probList.end()-9,filter.probList.end(),(double) 0);
-	  */
 
-	  std::vector<double> sumMHold = filter.calcModelProb();
+
+	  std::vector<double> sumMHold = filter.calcModelProbLog();
 
 	  double sumM0 = sumMHold[0];
 	  double sumM1 = sumMHold[1];
@@ -1133,29 +1374,7 @@ int main (int argc, char * const argv[]) {
 	}
 	
 	else std::cout << "Unable to open output probability file" << std::endl;
-	
-	
-	/*
-	  BasicDemo world;
-	  
-	  std::vector<double> prevState;
-	  prevState.push_back(0.0);
-	  prevState.push_back(0.0);
-	  
-	  std::vector<double> action;
-	  action.push_back(1.0);
-	  action.push_back(1.0);
-	  
-	  std::vector<double> nextState = world.runSimulation(prevState,action);
-	  
-	  std::cout << "ans:" << std::endl;
-	  std::cout << nextState[0] << "," << nextState[1] << std::endl;
-	  
-	  std::cout << "I made it TO THE END" << std::endl;
-	  
-	  double X = randomDouble();
-	  std::cout << X << std::endl;
-	*/
+
 
 	return 0;
 }

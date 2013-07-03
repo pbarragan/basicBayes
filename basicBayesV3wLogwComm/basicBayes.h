@@ -93,6 +93,24 @@ class basicBayes {
 	//debug printing
 	bool debug_print_;
 
+	//LOG STUFF
+	void transitionUpdateLog(std::vector<double> action);
+	void transitionUpdateLog(std::vector<double>& logProbList, std::vector<double> action);
+	void observationUpdateLog(std::vector<double> obs);
+	void observationUpdateLog(std::vector<double>& logProbList, std::vector<double> obs);
+	double logProbState(std::vector<double> sampleState, std::vector<double> meanState);
+	double logProbObs(std::vector<double> obs, std::vector<double> state);
+	void printLogProbList();
+	std::vector<double> calcModelProbLog();
+	std::vector<double> calcModelProbLog(std::vector<double>& logProbList);
+	void chooseActionLog();
+
+	std::vector<double> logProbList_;
+
+
+
+
+
 };
 
 #endif //BASIC_BAYES_H
