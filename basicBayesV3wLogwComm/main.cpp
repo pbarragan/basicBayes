@@ -1,4 +1,4 @@
-//this is in basicBayesV3wComm
+//this is in basicBayesV3wLogwComm
 
 #include <iostream>
 #include <fstream>
