@@ -1,0 +1,120 @@
+#include <iostream>
+#include <map>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include "sasUtils.h"
+
+//this is super specific to the exact state representation I am using as of 7/11/2013 (free surpee day)
+
+
+bool sasUtils::isMatch(mapPairVVV& sas, std::vector< std::vector<double> > states, std::vector< std::vector<double> > actions){
+  //make sure the number of state action pairs is the same as the number of map elements 
+  if (sas.size() == states.size()*actions.size()){
+    //check every state action pair to make sure that they exist
+    for (size_t i=0;i<actions.size();i++){
+      for (size_t j=0;j<states.size();j++){
+	if(sas.count(pairVV (states[j],actions[i]))==0){
+	  return false;
+	}
+      }
+    }
+    return true;
+  }
+  else return false;
+}
+
+
+void sasUtils::insertIntoSAS(mapPairVVV& sas,std::vector<double> prevState, std::vector<double> action, std::vector<double> nextState){
+  sas.insert(pairPairVVV (pairVV (prevState,action),nextState));
+}
+
+std::vector<double> sasUtils::getFromSAS(mapPairVVV& sas,std::vector<double> prevState, std::vector<double> action){
+  return sas[pairVV (prevState,action)];
+}
+
+bool sasUtils::readSASfromCSV(mapPairVVV& sas,std::string fileName){
+  //temporary holder for the sas map
+  mapPairVVV sasHolder;
+
+  std::ifstream data(fileName.c_str());
+  //these loops are under the specific assumption that the file is written with:
+  //1) 8 numbers per line, separated by commas.
+  //2) Each line is written in order of prevState, action, nextState
+  //3) prevState is three numbers
+  //4) action is two numbers
+  //5) nextState is three numbers
+  if (data.is_open()){
+
+    std::string line;
+    while(std::getline(data,line))
+      {
+
+	//initialize everyting you need for the inner loop
+	std::stringstream  lineStream(line);
+	std::string        cell;
+	size_t count = 0;
+	std::vector<double> tmpPrevState;
+	std::vector<double> tmpAction;
+	std::vector<double> tmpNextState;
+
+
+
+	while(std::getline(lineStream,cell,','))
+	  {
+	    // You have a cell
+	    std::stringstream cellStream(cell);
+	    double result;
+	    cellStream >> result;
+	    if (count<3){
+	      tmpPrevState.push_back(result);
+	    }
+	    else if (count>= 3 && count<=4){
+	      tmpAction.push_back(result);
+	    }
+	    else if (count>4){
+	      tmpNextState.push_back(result);
+	    }
+	    count++; //you have to keep a count of where you are
+	  }
+	
+	insertIntoSAS(sasHolder,tmpPrevState,tmpAction,tmpNextState);
+
+      }
+    sas = sasHolder;
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool sasUtils::writeSAStoCSV(mapPairVVV& sas,std::string fileName){
+  //try to write to csv
+  std::ofstream outFile(fileName.c_str());
+  
+  if (outFile.is_open()){
+    for (mapPairVVV_it mapIt = sas.begin(); mapIt !=sas.end(); mapIt++){
+      std::vector<double> tmpPrevState = mapIt->first.first;
+      std::vector<double> tmpAction = mapIt->first.second;
+      std::vector<double> tmpNextState = mapIt->second;
+      for (size_t i=0;i<tmpPrevState.size();i++){
+	outFile << tmpPrevState[i] << ",";
+      }
+      for (size_t i=0;i<tmpAction.size();i++){
+	outFile << tmpAction[i] << ",";
+      }
+      for (size_t i=0;i<tmpNextState.size()-1;i++){
+	outFile << tmpNextState[i] << ",";
+      }
+      outFile << tmpNextState.back() << "\n";
+    }
+    outFile.close();
+    return true;
+  }
+  else{
+    std::cout << "Unable to open output SAS file" << std::endl;
+    return false;
+  }
+}
